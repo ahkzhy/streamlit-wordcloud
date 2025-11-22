@@ -1,2 +1,8 @@
 client_secret_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json
 token.json
+client_secret_2_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json
+sentiment_title.csv
+sentiment.csv
+tfidf_title.csv
+tfidf.csv
+word_frequency_title.csv

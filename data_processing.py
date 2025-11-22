@@ -1,3 +1,4 @@
+import time
 import pandas as pd
 
 from article_utils import get_df_top_N_keywords, load_article_data, merge_with_article_info
@@ -5,7 +6,10 @@ from frequency_utils import load_frequency_data
 from sentiment_utils import get_top_n_by_score, load_sentiment_data
 from tfidf_utils import load_tfidf_data
 from history_queue import HistoryDataQueue
-
+from updater import start_download_thread
+"""
+    对读取到的数据进行处理，并更新数据
+"""
 class analysisData:
     """
     A class to handle analysis data operations.
@@ -81,9 +85,12 @@ class analysisData:
 if __name__ == "__main__":
     # Example usage
     analysis_data = analysisData()#初始化数据
-    analysis_data.update_data()#刷新数据
+    start_download_thread(analysis_data)#刷新数据
     #获取情感内容/标题top10正负面
     print(analysis_data.get_sentiment_content_top_10_desc())
     print(analysis_data.get_sentiment_title_top_10_desc())
     print(analysis_data.get_sentiment_content_top_10_asc())
     print(analysis_data.get_sentiment_title_top_10_asc())
+    while True:
+        print("working...")
+        time.sleep(5)

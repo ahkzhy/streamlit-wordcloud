@@ -1,3 +1,5 @@
+import re
+import gdown
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -6,14 +8,50 @@ from google.oauth2.credentials import Credentials
 import google.auth
 import io
 import os
+import socket
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+'''
+    download_files:从Google Drive下载所需文件，False=下载公开文件，True=下载共享文件
+'''
 
-'''
-    download_files:从Google Drive下载所需文件（未完成）
-'''
+socket.setdefaulttimeout(60)
 def set_proxy():
-    #set proxy if in mainland China
+    #set proxy if needed
     os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
     os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
+
+class  googleDriveFile:
+    def __init__(self,url,name):
+        self.url=url
+        self.name=name
+        patterns = [
+            r'/d/([a-zA-Z0-9_-]+)',       
+            r'/folders/([a-zA-Z0-9_-]+)', 
+            r'[?&]id=([a-zA-Z0-9_-]+)'    
+        ]
+        self.id=None
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                self.id= match.group(1)
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(5), 
+       retry=retry_if_exception_type((socket.timeout, ConnectionError, Exception)))        
+    def download(self,service=None):
+        if service==None:
+            gdown.download(self.url,self.name, quiet=False, fuzzy=True)
+        else:
+            download_file_by_id(service,self.id,self.name)
+    
+google_drive_files=[
+    googleDriveFile("https://drive.google.com/file/d/11tRxdWNUPwlM7zNg673MVSxtF38wi3Gx/view?usp=drive_link","word_frequency.csv"),
+    googleDriveFile("https://drive.google.com/file/d/1022t2nfJ5Ige15v_bCxIM96GB6Z-iM1B/view?usp=sharing","word_frequency_title.csv"),
+    googleDriveFile("https://drive.google.com/file/d/1gTo1x6CLOGk-8QrxwQZeCOMtobixHkml/view?usp=drive_link","tfidf.csv"),
+    googleDriveFile("https://drive.google.com/file/d/1ZxfSautn2B-BIzP1zmFdUefBjn-Wsikk/view?usp=drive_link","tfidf_title.csv"),
+    googleDriveFile("https://drive.google.com/file/d/1JHW167sbNYhUvGNnbJAI6M-z-r_uywHA/view?usp=drive_link","sentiment.csv"),
+    googleDriveFile("https://drive.google.com/file/d/1WsbK-S7C9Ft8P0Y8H12cU_XTzBtgzbeR/view?usp=drive_link","sentiment_title.csv")
+]
+
+
 
 def get_credentials(client_secret_path, scopes, token_cache="token.json"):
     """
@@ -32,7 +70,7 @@ def get_credentials(client_secret_path, scopes, token_cache="token.json"):
     # time.
 
     if os.path.exists(token_cache):
-        creds = Credentials.from_authorized_user_file(token_cache, scopes)[0]
+        creds = Credentials.from_authorized_user_file(token_cache, scopes[0])
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -162,27 +200,34 @@ def download_file_by_id(service,file_id, save_path):
     except Exception as e:
         print(f"failed: {str(e)}")
 
-def download_files():
+
+def download_files(restricted=False):
     '''
     download needed files from Google Drive.
     '''
-    credentials = get_credentials(
-        'client_secret_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json',
-        scopes=['https://www.googleapis.com/auth/drive.readonly']  # read-only access
-    )
+    set_proxy() #
+    if restricted:
+        credentials = get_credentials(
+            'client_secret_2_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json',
+            scopes=['https://www.googleapis.com/auth/drive.readonly']  # read-only access
+        )
 
-    service = build('drive', 'v3', credentials=credentials)
-    save_path = ""
+        service = build('drive', 'v3', credentials=credentials)
+        for file in google_drive_files:
+            file.download(service)
+    else:
+        for file in google_drive_files:
+            file.download()
 
-    
 
 if __name__ == "__main__":
     #example usage
-    set_proxy()#set proxy if needed
-    credentials = get_credentials(
-        'client_secret_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json',
-        scopes=['https://www.googleapis.com/auth/drive.readonly']  # read-only access
-    )
+    # set_proxy()
+    # credentials = get_credentials(
+    #     'client_secret_2_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json',
+    #     scopes=['https://www.googleapis.com/auth/drive.readonly']  # read-only access
+    # )
 
-    service = build('drive', 'v3', credentials=credentials)
-    list_drive_files(service, page_size=10, show_all=True)
+    # service = build('drive', 'v3', credentials=credentials)
+    # list_drive_files(service, page_size=10, show_all=True)
+    download_files(True)
