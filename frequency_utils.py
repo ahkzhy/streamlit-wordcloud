@@ -1,4 +1,5 @@
 from collections import defaultdict
+import re
 import pandas as pd
 
 import numpy as np
@@ -7,6 +8,71 @@ import numpy as np
     calculate_word_trends:计算词频变化趋势
     detect_burst_words:基于HistoryDataQueue检测热词突增
 """
+def get_english_stopwords():
+    """获取英文停用词列表 (从 app.py 迁移过来)"""
+    english_stopwords = {
+        # 基础冠词、连词、介词
+        'a', 'an', 'the', 'and', 'or', 'but', 'if', 'because', 'as', 'until', 'while', 
+        'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 
+        'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in', 
+        'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 
+        'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 
+        'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 
+        'same', 'so', 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 
+        'should', 'now', 'd', 'll', 'm', 'o', 're', 've', 'y', 'ain', 'aren', 'couldn', 
+        'didn', 'doesn', 'hadn', 'hasn', 'haven', 'isn', 'ma', 'mightn', 'mustn', 
+        'needn', 'shan', 'shouldn', 'wasn', 'weren', 'won', 'wouldn',
+        # 代词
+        'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 
+        'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 
+        'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 
+        'themselves', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 
+        'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 
+        'having', 'do', 'does', 'did', 'doing',
+        # 常见无意义词
+        'would', 'could', 'should', 'via', 'per', 'eg', 'ie', 'etc', 'vs', 'us', 
+        'using', 'used', 'make', 'made', 'making', 'see', 'saw', 'seen', 'get', 'got', 
+        'getting', 'go', 'went', 'gone', 'come', 'came', 'coming', 'take', 'took', 
+        'taken', 'say', 'said', 'saying', 'tell', 'told', 'telling', 'ask', 'asked', 
+        'asking', 'give', 'gave', 'given', 'keep', 'kept', 'keeping', 'let', 'letting', 
+        'put', 'putting', 'seem', 'seemed', 'seeming', 'look', 'looked', 'looking',
+        # 常见动词/助词
+        'may', 'might', 'must', 'shall', 'should', 'will', 'would', 'can', 'could',
+        'say', 'says', 'said', 'mr', 'ms', 'mrs', 'one', 'two', 'three', 'four', 
+        'five', 'first', 'second', 'third', 'new', 'old', 'good', 'bad', 'high', 
+        'low', 'big', 'small', 'large', 'great', 'little', 'many', 'much', 'less', 
+        'least', 'more', 'most', 'another', 'other', 'others', 'top', 'best', 'better'
+    }
+    return english_stopwords
+def is_english_word(word):
+    """检查单词是否只包含英文字母"""
+    if not isinstance(word, str):
+        return False
+    # 使用正则表达式检查是否只包含英文字母（允许连字符和撇号）
+    return bool(re.match(r'^[a-zA-Z\-\.\']+$', word))
+def clean_with_stopwords(df):
+    """
+    使用停用词表清洗 DataFrame
+    """
+    if df is None or df.empty:
+        return df, 0
+        
+    original_count = len(df)
+    stopwords = get_english_stopwords()
+    
+    # 确保 word 列存在且转为小写进行比对
+    if 'word' in df.columns:
+        # 过滤掉停用词 (转换为小写比较)
+        df_clean = df[~df['word'].str.lower().isin(stopwords)].copy()
+        
+        # 过滤掉纯数字或过短的词
+        df_clean = df_clean[df_clean['word'].str.len() > 1] # 过滤单字母
+        df_clean = df_clean[~df_clean['word'].str.isnumeric()] # 过滤纯数字
+        
+        removed_count = original_count - len(df_clean)
+        return df_clean, removed_count
+    
+    return df, 0
 
 def parse_frequency_data(file_path):
     """
@@ -43,7 +109,7 @@ def clean_frequency_data(df):
     df = df.dropna(subset=['frequency'])
     # Remove rows with non-numeric frequencies
     df = df[pd.to_numeric(df['frequency'], errors='coerce').notnull()]
-
+    df = clean_with_stopwords(df)
     return df
 
 def load_frequency_data():
@@ -64,7 +130,7 @@ def calculate_word_trends(old_freq, new_freq):
     Returns:
         dict: A dictionary with keys 'common', 'new', 'lost', and 'all' containing DataFrames."""
     if old_freq is None or new_freq is None:
-        return None
+        return {}
     
     # combine old and new frequency data on 'word'
     merged = pd.merge(
@@ -74,23 +140,23 @@ def calculate_word_trends(old_freq, new_freq):
         how='outer' # keep all words
     )
     # fill NaN frequencies with 0
-    merged['frequency_old'] = merged['frequency_old'].fillna(0)
-    merged['frequency_new'] = merged['frequency_new'].fillna(0)
+    merged['count_old'] = merged['count_old'].fillna(0)
+    merged['count_new'] = merged['count_new'].fillna(0)
     
     # calculate frequency change and rate
-    merged['freq_change'] = merged['frequency_new'] - merged['frequency_old']
+    merged['freq_change'] = merged['count_new'] - merged['count_old']
     merged['freq_change_rate'] = np.where(
-        merged['frequency_old'] == 0,
-        np.where(merged['frequency_new'] == 0, 0, 1), # if old freq is 0 and new freq > 0, rate is 1
-        merged['freq_change'] / merged['frequency_old']
+        merged['count_old'] == 0,
+        np.where(merged['count_new'] == 0, 0, 1), # if old freq is 0 and new freq > 0, rate is 1
+        merged['freq_change'] / merged['count_old']
     )
     
     # identify new, lost, and common words
     merged['trend'] = np.where(
-        (merged['frequency_old'] > 0) & (merged['frequency_new'] > 0),
+        (merged['count_old'] > 0) & (merged['count_new'] > 0),
         'common',  
         np.where(
-            merged['frequency_old'] == 0,
+            merged['count_old'] == 0,
             'new', 
             'lost'  
         )
@@ -115,15 +181,15 @@ def detect_burst_words(freq_queue, current_window_size=2, baseline_window_size=8
         min_freq_base: 基线窗口标准化后最小频次（过滤历史低频词）
         top_k: 取前K个热词
     Returns:
-        top_burst_words: 排序后的热词列表（含词、频次、突增指标）
+        top_burst_words: 排序后的热词df（含词、频次、突增指标） word,freq_now, freq_base, fold_change,burst_score
     """
     # --------------------------
     # 1. check if enough data
     # --------------------------
     all_updates = freq_queue.get_all()
     if len(all_updates) < (current_window_size + baseline_window_size):
-        raise ValueError(f"lack of data. at least{current_window_size + baseline_window_size}times of updates required.")
-
+        #raise ValueError(f"lack of data. at least{current_window_size + baseline_window_size}times of updates required.")
+        return pd.DataFrame()
     # --------------------------
     # 2. seperate windows
     # --------------------------
@@ -185,4 +251,7 @@ def detect_burst_words(freq_queue, current_window_size=2, baseline_window_size=8
     # --------------------------
     # 6. sort and return top K burst words
     # --------------------------
-    return sorted(burst_words, key=lambda x: x['burst_score'], reverse=True)[:top_k]
+    burst_words=sorted(burst_words, key=lambda x: x['burst_score'], reverse=True)[:top_k]
+    df = pd.DataFrame(burst_words, columns=['word', 'freq_now', 'freq_base','fold_change','burst_score'])
+    return df
+

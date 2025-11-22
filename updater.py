@@ -10,9 +10,11 @@ def periodic_updater(analysis_data):
     while True:
         try:
            
-            download_files(True)
-            analysis_data.update_data()
-            print("data updated")
+            if  download_files(True):
+            
+                analysis_data.update_data()
+                print("data updated")
+            print("no change")
         except Exception as e:
             print(f"Error in loop: {e}")
         

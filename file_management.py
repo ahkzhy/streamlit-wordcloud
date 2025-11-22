@@ -1,11 +1,12 @@
 import re
+
+import dateutil
 import gdown
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-import google.auth
 import io
 import os
 import socket
@@ -40,7 +41,19 @@ class  googleDriveFile:
         if service==None:
             gdown.download(self.url,self.name, quiet=False, fuzzy=True)
         else:
+            file_metadata = service.files().get(fileId=self.id, fields="id, modifiedTime").execute()
+            cloud_time_str = file_metadata['modifiedTime']
+
+            cloud_time = dateutil.parser.isoparse(cloud_time_str).timestamp()
+            if os.path.exists(self.name):
+                local_time = os.path.getmtime(self.name)
+            
+            # 如果云端时间 <= 本地时间，说明没更新，直接跳过
+            if cloud_time <= local_time:
+                print("no change, skip dowloading")
+                return False
             download_file_by_id(service,self.id,self.name)
+        return True
     
 google_drive_files=[
     googleDriveFile("https://drive.google.com/file/d/11tRxdWNUPwlM7zNg673MVSxtF38wi3Gx/view?usp=drive_link","word_frequency.csv"),
@@ -70,11 +83,20 @@ def get_credentials(client_secret_path, scopes, token_cache="token.json"):
     # time.
 
     if os.path.exists(token_cache):
-        creds = Credentials.from_authorized_user_file(token_cache, scopes[0])
+        try:
+            creds = Credentials.from_authorized_user_file(token_cache, scopes[0])
+        except:
+            creds=None
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+            try:
+                print("Token expired...")
+                creds.refresh(Request())
+            except ( Exception) as e:
+                # --- 关键点在这里 ---
+                print(f"❌ refresh Token fail: {e}")
+                creds = None # 重置 creds，强制进入下面的登录流程
+        if not creds:
             flow = InstalledAppFlow.from_client_secrets_file(
                 client_secret_path, scopes, redirect_uri="http://localhost:8080/"
             )
@@ -206,6 +228,8 @@ def download_files(restricted=False):
     download needed files from Google Drive.
     '''
     set_proxy() #
+    new_file=False
+    
     if restricted:
         credentials = get_credentials(
             'client_secret_2_935968549547-63lg10icuv1p6vr61or7s34nsaj78dmq.apps.googleusercontent.com.json',
@@ -214,10 +238,14 @@ def download_files(restricted=False):
 
         service = build('drive', 'v3', credentials=credentials)
         for file in google_drive_files:
-            file.download(service)
+            new_file=new_file or file.download(service)
+
+        
     else:
+        new_file=True
         for file in google_drive_files:
             file.download()
+    return new_file
 
 
 if __name__ == "__main__":

@@ -6,3 +6,4 @@ sentiment.csv
 tfidf_title.csv
 tfidf.csv
 word_frequency_title.csv
+word_frequency.csv

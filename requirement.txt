@@ -4,3 +4,12 @@ matplotlib
 wordcloud
 plotly
 numpy
+scikit-learn
+gdown                     
+google-api-core           
+google-api-python-client  
+google-auth-httplib2 
+google-auth-oauthlib 
+tenacity
+python-dateutil
+requests

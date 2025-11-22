@@ -1,8 +1,9 @@
+import threading
 import time
 import pandas as pd
 
 from article_utils import get_df_top_N_keywords, load_article_data, merge_with_article_info
-from frequency_utils import load_frequency_data
+from frequency_utils import calculate_word_trends, detect_burst_words, load_frequency_data
 from sentiment_utils import get_top_n_by_score, load_sentiment_data
 from tfidf_utils import load_tfidf_data
 from history_queue import HistoryDataQueue
@@ -18,13 +19,15 @@ class analysisData:
         self.word_frequency_df=HistoryDataQueue()
         self.word_frequency_title_df=HistoryDataQueue()
         self.load_data()
+        self.data_lock = threading.Lock()
         
     #-- Data Loading and Updating Methods --#
     def update_data(self):
         """
         Update and reload analysis data from CSV files.
         """
-        self.load_data()
+        with self.data_lock:
+            self.load_data()
 
     def load_data(self):
         """
@@ -46,7 +49,8 @@ class analysisData:
         """
         Get top 10 content sentiment scores from sentiment data.
         """
-        top_10_sentiments = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=False,content=True)
+        with self.data_lock:
+            top_10_sentiments = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=False,content=True)
 
         return top_10_sentiments
     
@@ -54,7 +58,8 @@ class analysisData:
         """
         Get top 10 title sentiment scores from sentiment data.
         """
-        top_10_sentiments_title = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=False,content=False)
+        with self.data_lock:
+            top_10_sentiments_title = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=False,content=False)
 
         return top_10_sentiments_title
 
@@ -62,14 +67,16 @@ class analysisData:
         """
         Get top 10 content sentiment scores from sentiment data in ascending order.
         """  
-        top_10_sentiments = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=True,content=True)
+        with self.data_lock:
+            top_10_sentiments = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=True,content=True)
         return top_10_sentiments
     
     def get_sentiment_title_top_10_asc(self):
         """
         Get top 10 title sentiment scores from sentiment data in ascending order.
         """
-        top_10_sentiments_title = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=True,content=False)
+        with self.data_lock:
+            top_10_sentiments_title = get_top_n_by_score(self.sentiment_df, top_n=10, ascending=True,content=False)
 
         return top_10_sentiments_title
 
@@ -78,19 +85,51 @@ class analysisData:
         """
         Get top 5 keywords of each article.
         """
-        article_top_5=get_df_top_N_keywords(self.article_df, top_n=5)
+        with self.data_lock:
+            article_top_5=get_df_top_N_keywords(self.article_df, top_n=5)
 
         return article_top_5
+
+
+    # --- Frequency trend Methods ---#
+    def get_word_trends_analysis(self):
+        """
+        计算词频趋势（对比最近两次更新）
+        Returns: 
+            dict: A dictionary with keys 'common', 'new', 'lost', and 'all' containing DataFrames.
+        """
+        with self.data_lock:
+            # 获取最近两份数据
+            recent_data = self.word_frequency_df.get_recent(2)
+        
+            if len(recent_data) < 2:
+                return {} # 数据不足，无法对比
+                
+            # recent_data 是 [(ts1, df1), (ts2, df2)]
+            prev_df = recent_data[0][1]
+            curr_df = recent_data[1][1]
+        
+        # 调用 frequency_utils 中的函数
+        return calculate_word_trends(prev_df, curr_df)
+
+    
+
+    def get_burst_words_analysis(self):
+        """
+        
+        Returns: top_burst_words: 排序后的热词df（含词、频次、突增指标）word,freq_now, freq_base, fold_change,burst_score
+        """
+        with self.data_lock:
+            df=self.word_frequency_df
+        return detect_burst_words(df)
+
 
 if __name__ == "__main__":
     # Example usage
     analysis_data = analysisData()#初始化数据
     start_download_thread(analysis_data)#刷新数据
     #获取情感内容/标题top10正负面
-    print(analysis_data.get_sentiment_content_top_10_desc())
-    print(analysis_data.get_sentiment_title_top_10_desc())
-    print(analysis_data.get_sentiment_content_top_10_asc())
-    print(analysis_data.get_sentiment_title_top_10_asc())
+
     while True:
-        print("working...")
+        print("working..."+str(analysis_data.word_frequency_df.size()))
         time.sleep(5)
