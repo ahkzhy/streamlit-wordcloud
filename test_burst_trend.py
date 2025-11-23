@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from collections import deque
 from datetime import datetime
+from frequency_utils import calculate_word_trends, detect_burst_words
+from history_queue import HistoryDataQueue
+import numpy as np
 
 # 假设你的函数在一个名为 frequency_utils 的文件中
 from frequency_utils import calculate_word_trends, detect_burst_words
@@ -38,7 +41,7 @@ class TestTrendAnalysis(unittest.TestCase):
         # 1. 构造旧数据 (Round 1)
         old_data = pd.DataFrame({
             'word': ['apple', 'banana', 'common_word'],
-            'frequency': [10, 5, 20]
+            'count': [10, 5, 20]
         })
 
         # 2. 构造新数据 (Round 2)
@@ -48,7 +51,7 @@ class TestTrendAnalysis(unittest.TestCase):
         # - durian: 新出现 (New)
         new_data = pd.DataFrame({
             'word': ['banana', 'common_word', 'durian'],
-            'frequency': [5, 50, 15]
+            'count': [5, 50, 15]
         })
 
         # 3. 运行函数
@@ -100,7 +103,7 @@ class TestTrendAnalysis(unittest.TestCase):
         for i in range(BASELINE_LEN):
             df = pd.DataFrame({
                 'word': ['SuperTopic', 'NormalTopic', 'Noise'],
-                'frequency': [1, 10, 1] # SuperTopic 平均为 1
+                'count': [1, 10, 1] # SuperTopic 平均为 1
             })
             history_data.append((datetime.now(), df))
 
@@ -108,7 +111,7 @@ class TestTrendAnalysis(unittest.TestCase):
         for i in range(CURRENT_LEN):
             df = pd.DataFrame({
                 'word': ['SuperTopic', 'NormalTopic', 'Noise'],
-                'frequency': [50, 10, 1] # SuperTopic 突然变成 50
+                'count': [50, 10, 1] # SuperTopic 突然变成 50
             })
             history_data.append((datetime.now(), df))
 
@@ -153,6 +156,81 @@ class TestTrendAnalysis(unittest.TestCase):
         self.assertTrue(fold_change > 40, "Fold change should be huge")
         
         print("  ✅ detect_burst_words Passed!")
+def generate_simulated_pipeline_data():
+    """
+    构造符合 detect_burst_words 长度要求的仿真数据
+    """
+    print("🧪 Starting Pipeline Simulation...")
+    
+    # 1. 实例化真实的队列
+    hq = HistoryDataQueue(max_length=20) # 确保容量够大
+    
+    # ----------------------------------------
+    # 第一阶段：构造 Baseline 数据 (模拟过去的平稳期)
+    # ----------------------------------------
+    # 我们需要构造足够多的历史数据，让 baseline_window 有东西可算
+    # 假设我们想用 baseline_window_size = 5
+    
+    # 基础词汇：Python一直很火，Crisis以前很少
+    base_words = ['Python', 'Data', 'Crisis', 'AI', 'Election']
+    base_counts = [100,      80,     5,       60,   20]
+    
+    # 循环添加 5 次，作为“过去的时间片”
+    for i in range(5):
+        # 加一点随机波动，显得真实
+        counts = [c + np.random.randint(-5, 5) for c in base_counts]
+        df_temp = pd.DataFrame({'word': base_words, 'count': counts})
+        hq.add(df_temp)
+        
+    # ----------------------------------------
+    # 第二阶段：构造 Current 数据 (模拟最近的爆发期)
+    # ----------------------------------------
+    # 我们用 current_window_size = 2
+    
+    # T-1 (倒数第二次): 趋势开始变化
+    df_prev = pd.DataFrame({
+        'word': ['Python', 'Data', 'Crisis', 'AI', 'Election', 'SuddenMeme'],
+        'count': [105,     82,     20,       65,   22,         50] 
+    })
+    hq.add(df_prev) # Crisis 开始涨了, SuddenMeme 出现了
+    
+    # T-0 (最新一次): 彻底爆发
+    # Crisis: 5 -> 20 -> 100 (Burst!)
+    # SuddenMeme: 0 -> 50 -> 300 (New & Burst!)
+    df_curr = pd.DataFrame({
+        'word': ['Python', 'Data', 'Crisis', 'AI', 'Election', 'SuddenMeme', 'Unknown'],
+        'count': [110,     85,     100,      70,   25,         300,          10]
+    })
+    hq.add(df_curr)
+    
+    # ----------------------------------------
+    # 第三阶段：调用算法 (关键点！)
+    # ----------------------------------------
+    
+    # 目前队列总长度 = 5 (Base) + 2 (Current) = 7
+    # 你的函数默认要求 2+8=10，如果不改参数会返回空。
+    # 所以我们手动传入 window 参数，适配现有的 7 条数据。
+    
+    # baseline_window_size 设为 5，current 设为 2，总共需要 7，刚好满足。
+    burst_df = detect_burst_words(
+        freq_queue=hq,                # 传入队列实例
+        current_window_size=2,        # 取最近2个
+        baseline_window_size=5,       # 取再之前的5个做基线
+        min_freq_now=10,              # 过滤太小的
+        top_k=10
+    )
+    
+    # 计算 Trend (常规逻辑)
+    recent = hq.get_recent(2)
+    df_t1 = recent[0][1]
+    df_t0 = recent[1][1]
+    trend_result = calculate_word_trends(df_t1, df_t0)
+    
+    # 补丁：确保 change 字段存在
+    for key, df in trend_result.items():
+        if not df.empty and 'diff' in df.columns:
+            df['change'] = df['diff']
 
+    return trend_result, burst_df
 if __name__ == '__main__':
     unittest.main()

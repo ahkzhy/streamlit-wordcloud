@@ -119,6 +119,39 @@ class analysisData:
         # 调用 frequency_utils 中的函数
         return calculate_word_trends(prev_df, curr_df)
 
+    def get_history_trends_analysis(self):
+        """
+        新增功能：计算当前词频 vs 历史平均词频的趋势
+        符合 'Compare to previous 24 hours' 的要求
+        """
+        with self.data_lock:
+            # 1. 获取所有历史数据
+            all_history = self.word_frequency_df.get_all()
+            
+            # 至少需要 2 份数据才能做对比（1份当前，1份历史）
+            if len(all_history) < 2:
+                return {} 
+            
+            # 2. 分离当前数据和历史背景数据
+            # current_entry 是 (timestamp, df)
+            current_entry = all_history[-1] 
+            curr_df = current_entry[1]
+            
+            # 历史背景 = 除了最新这一份之外的所有
+            past_entries = all_history[:-1]
+            past_dfs = [entry[1] for entry in past_entries]
+            
+            # 3. 【关键步骤】聚合历史数据作为 Baseline
+            # 将过去所有的 DataFrame 合并，然后按 word 分组取平均值
+            # 这样我们就得到了一个“平滑”的历史基准线
+            if past_dfs:
+                baseline_df = pd.concat(past_dfs).groupby('word', as_index=False)['count'].mean()
+            else:
+                return {}
+
+        # 4. 复用 frequency_utils 里的计算逻辑
+        # 因为逻辑一样：都是算 New - Old
+        return calculate_word_trends(baseline_df, curr_df)
     
 
     def get_burst_words_analysis(self):

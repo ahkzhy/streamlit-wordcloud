@@ -13,3 +13,4 @@ google-auth-oauthlib
 tenacity
 python-dateutil
 requests
+streamlit-autorefresh
