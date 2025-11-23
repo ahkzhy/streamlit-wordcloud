@@ -3,77 +3,12 @@ import re
 import pandas as pd
 
 import numpy as np
+from utils import clean_with_stopwords
 """
     load_frequency_data:加载词频数据
     calculate_word_trends:计算词频变化趋势
     detect_burst_words:基于HistoryDataQueue检测热词突增
 """
-def get_english_stopwords():
-    """获取英文停用词列表 (从 app.py 迁移过来)"""
-    english_stopwords = {
-        # 基础冠词、连词、介词
-        'a', 'an', 'the', 'and', 'or', 'but', 'if', 'because', 'as', 'until', 'while', 
-        'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 
-        'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in', 
-        'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 
-        'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 
-        'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 
-        'same', 'so', 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 
-        'should', 'now', 'd', 'll', 'm', 'o', 're', 've', 'y', 'ain', 'aren', 'couldn', 
-        'didn', 'doesn', 'hadn', 'hasn', 'haven', 'isn', 'ma', 'mightn', 'mustn', 
-        'needn', 'shan', 'shouldn', 'wasn', 'weren', 'won', 'wouldn',
-        # 代词
-        'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 
-        'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 
-        'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 
-        'themselves', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 
-        'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 
-        'having', 'do', 'does', 'did', 'doing',
-        # 常见无意义词
-        'would', 'could', 'should', 'via', 'per', 'eg', 'ie', 'etc', 'vs', 'us', 
-        'using', 'used', 'make', 'made', 'making', 'see', 'saw', 'seen', 'get', 'got', 
-        'getting', 'go', 'went', 'gone', 'come', 'came', 'coming', 'take', 'took', 
-        'taken', 'say', 'said', 'saying', 'tell', 'told', 'telling', 'ask', 'asked', 
-        'asking', 'give', 'gave', 'given', 'keep', 'kept', 'keeping', 'let', 'letting', 
-        'put', 'putting', 'seem', 'seemed', 'seeming', 'look', 'looked', 'looking',
-        # 常见动词/助词
-        'may', 'might', 'must', 'shall', 'should', 'will', 'would', 'can', 'could',
-        'say', 'says', 'said', 'mr', 'ms', 'mrs', 'one', 'two', 'three', 'four', 
-        'five', 'first', 'second', 'third', 'new', 'old', 'good', 'bad', 'high', 
-        'low', 'big', 'small', 'large', 'great', 'little', 'many', 'much', 'less', 
-        'least', 'more', 'most', 'another', 'other', 'others', 'top', 'best', 'better'
-    }
-    return english_stopwords
-def is_english_word(word):
-    """检查单词是否只包含英文字母"""
-    if not isinstance(word, str):
-        return False
-    # 使用正则表达式检查是否只包含英文字母（允许连字符和撇号）
-    return bool(re.match(r'^[a-zA-Z\-\.\']+$', word))
-def clean_with_stopwords(df):
-    """
-    使用停用词表清洗 DataFrame
-    """
-    if df is None or df.empty:
-        return df, 0
-        
-    original_count = len(df)
-    stopwords = get_english_stopwords()
-    
-    # 确保 word 列存在且转为小写进行比对
-    if 'word' in df.columns:
-        # 过滤掉停用词 (转换为小写比较)
-        df_clean = df[~df['word'].str.lower().isin(stopwords)].copy()
-        
-        # 过滤掉纯数字或过短的词
-        df_clean = df_clean[df_clean['word'].str.len() > 1] # 过滤单字母
-        df_clean = df_clean[~df_clean['word'].str.isnumeric()] # 过滤纯数字
-        
-        removed_count = original_count - len(df_clean)
-        return df_clean, removed_count
-    
-    return df, 0
-
 def parse_frequency_data(file_path):
     """
     Parses a frequency analysis dataset from a CSV file.
@@ -87,12 +22,12 @@ def parse_frequency_data(file_path):
     df = pd.read_csv(file_path)
 
     # Check for required columns
-    required_columns = {'word', 'frequency'}
+    required_columns = {'word', 'count'}
     if not required_columns.issubset(df.columns):
         raise ValueError(f"Input file must contain the following columns: {required_columns}")
 
     # Clean and preprocess the data if necessary
-    clean_frequency_data(df)
+    df=clean_frequency_data(df)
 
     return df
 
@@ -106,10 +41,11 @@ def clean_frequency_data(df):
         pd.DataFrame: A cleaned DataFrame with valid frequency values.
     """
     # Remove rows with NaN frequencies
-    df = df.dropna(subset=['frequency'])
+    df = df.dropna(subset=['count'])
     # Remove rows with non-numeric frequencies
-    df = df[pd.to_numeric(df['frequency'], errors='coerce').notnull()]
-    df = clean_with_stopwords(df)
+    df = df[pd.to_numeric(df['count'], errors='coerce').notnull()]
+    df,removed_count = clean_with_stopwords(df)
+    print(f"Cleaned: removed {removed_count} stopwords")
     return df
 
 def load_frequency_data():
@@ -118,8 +54,8 @@ def load_frequency_data():
     Returns:
         pd.DataFrame: Two DataFrame containing the parsed frequency data.
     """
-    frequency_df = pd.read_csv("word_frequency.csv")  
-    frequency_title_df = pd.read_csv("word_frequency_title.csv")
+    frequency_df = parse_frequency_data("word_frequency.csv")  
+    frequency_title_df = parse_frequency_data("word_frequency_title.csv")
 
     return frequency_df,frequency_title_df
 
