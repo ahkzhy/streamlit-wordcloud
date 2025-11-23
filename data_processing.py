@@ -22,26 +22,33 @@ class analysisData:
         self.data_lock = threading.Lock()
         
     #-- Data Loading and Updating Methods --#
-    def update_data(self):
+    def update_data(self,file="all"):
         """
         Update and reload analysis data from CSV files.
         """
         with self.data_lock:
-            self.load_data()
+            self.load_data(file)
 
-    def load_data(self):
+    def load_data(self,file="all"):
         """
         Load and parse analysis data from CSV files.
         """
-        self.article_df = load_article_data()
-
-        self.sentiment_df = load_sentiment_data()
-
+        if file=="articles.csv" or file=="all":
+            self.article_df = load_article_data()
+        if file=="sentiment.csv" or file=="all":
+            self.sentiment_df = load_sentiment_data()
+        
         word_frequency_df,word_frequency_title_df = load_frequency_data()
-        self.word_frequency_df.add(word_frequency_df)
-        self.word_frequency_title_df.add(word_frequency_title_df)
+        if file=="word_frequency.csv" or file=="all":
+            self.word_frequency_df.add(word_frequency_df)
+        if file=="word_frequency_title.csv" or file=="all":
+            self.word_frequency_title_df.add(word_frequency_title_df)
 
-        self.tfidf_df, self.tfidf_title_df = load_tfidf_data()
+        tfidf_df,tfidf_title_df = load_tfidf_data()
+        if file=="tfidf.csv" or file=="all":
+            self.tfidf_df=tfidf_df
+        if file=="tfidf_title.csv" or file=="all":
+            self.tfidf_title_df=tfidf_title_df
 
         
     #-- Sentiment Analysis Methods --#
@@ -126,10 +133,11 @@ class analysisData:
 
 if __name__ == "__main__":
     # Example usage
-    analysis_data = analysisData()#初始化数据
-    start_download_thread(analysis_data)#刷新数据
-    #获取情感内容/标题top10正负面
+    # analysis_data = analysisData()#初始化数据
+    # start_download_thread(analysis_data)#刷新数据
+    # #获取情感内容/标题top10正负面
 
-    while True:
-        print("working..."+str(analysis_data.word_frequency_df.size()))
-        time.sleep(5)
+    # while True:
+    #     print("working..."+str(analysis_data.word_frequency_df.size()))
+    #     time.sleep(5)
+    pass

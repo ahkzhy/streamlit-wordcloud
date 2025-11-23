@@ -142,7 +142,7 @@ def detect_burst_words(freq_queue, current_window_size=2, baseline_window_size=8
             # 遍历该次更新的词频DataFrame，累加总频次
             for _, row in freq_df.iterrows():
                 word = row['word']
-                word_total[word] += row['frequency']
+                word_total[word] += row['count']
         return word_total
 
     current_freq = aggregate_window(current_updates)

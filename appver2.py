@@ -261,7 +261,7 @@ def main():
     # 加载或更新数据
     if st.session_state.analysis_data is None:
         update_data_cache()
-        st.session_state.cache_expiry = datetime.now() + timedelta(minutes=5)
+        st.session_state.cache_expiry = datetime.now() + timedelta(seconds=10)
     
     data = st.session_state.analysis_data
     
@@ -282,11 +282,11 @@ def main():
             if datetime.now() > st.session_state.cache_expiry:
                 st.warning("Cache expired, refreshing data...")
                 update_data_cache()
-                st.session_state.cache_expiry = datetime.now() + timedelta(minutes=5)
+                st.session_state.cache_expiry = datetime.now() + timedelta(seconds=10)
         
         if st.button("🔄 Refresh Data Now"):
             update_data_cache()
-            st.session_state.cache_expiry = datetime.now() + timedelta(minutes=5)
+            st.session_state.cache_expiry = datetime.now() + timedelta(seconds=10)
             st.rerun()
     
 

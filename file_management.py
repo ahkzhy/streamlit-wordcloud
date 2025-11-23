@@ -40,6 +40,7 @@ class  googleDriveFile:
     def download(self,service=None):
         if service==None:
             gdown.download(self.url,self.name, quiet=False, fuzzy=True)
+            return self.name
         else:
             file_metadata = service.files().get(fileId=self.id, fields="id, modifiedTime").execute()
             cloud_time_str = file_metadata['modifiedTime']
@@ -51,9 +52,9 @@ class  googleDriveFile:
             # 如果云端时间 <= 本地时间，说明没更新，直接跳过
             if cloud_time <= local_time:
                 print("no change, skip dowloading")
-                return False
+                return ""
             download_file_by_id(service,self.id,self.name)
-        return True
+        return self.name
     
 google_drive_files=[
     googleDriveFile("https://drive.google.com/file/d/11tRxdWNUPwlM7zNg673MVSxtF38wi3Gx/view?usp=drive_link","word_frequency.csv"),
@@ -207,7 +208,7 @@ def search_file_id(service, filename, folder_id=None, exact_match=False):
 def download_file_by_id(service,file_id, save_path):
     try:
         file_metadata = service.files().get(fileId=file_id).execute()
-        print(f"start to load{file_metadata['name']}")
+        print(f"start to download {file_metadata['name']}")
         
         request = service.files().get_media(fileId=file_id)
         fh = io.FileIO(save_path, "wb")
@@ -228,7 +229,7 @@ def download_files(restricted=False):
     download needed files from Google Drive.
     '''
     set_proxy() #
-    new_file=False
+    new_file=[]
     
     if restricted:
         credentials = get_credentials(
@@ -238,13 +239,13 @@ def download_files(restricted=False):
 
         service = build('drive', 'v3', credentials=credentials)
         for file in google_drive_files:
-            new_file=new_file or file.download(service)
+            new_file.append(file.download(service))
 
         
     else:
-        new_file=True
+        
         for file in google_drive_files:
-            file.download()
+            new_file.append(file.download())
     return new_file
 
 
