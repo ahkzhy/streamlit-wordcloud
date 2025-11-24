@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import re
 import pandas as pd
 
@@ -102,3 +103,37 @@ def clean_with_stopwords(df, word_col='word'):
     original_count = len(df)
     cleaned_df = df[df[word_col].apply(is_valid_word)].copy()
     return cleaned_df, original_count - len(cleaned_df)
+
+def generate_simulated_sentiment_data():
+    """
+    仿真函数：包含情感趋势数据
+    """
+
+    # === 新增：伪造情感趋势数据 ===
+    # 构造过去 10 个时间点的数据
+    timestamps = [datetime.now() - timedelta(minutes=10*i) for i in range(10)][::-1]
+    
+    # 模拟一个“舆情先下降后上升”的趋势
+    # Content: -0.2 -> -0.5 -> 0.1 -> 0.4
+    content_scores = [-0.1, -0.2, -0.4, -0.5, -0.3, 0.0, 0.2, 0.4, 0.5, 0.6]
+    # Title: 通常比正文更极端一点
+    title_scores =   [-0.2, -0.3, -0.6, -0.8, -0.4, 0.1, 0.3, 0.5, 0.7, 0.8]
+    
+    sentiment_history = []
+    for t, c, ti in zip(timestamps, content_scores, title_scores):
+        sentiment_history.append({
+            'timestamp': t,
+            'avg_content': c,
+            'avg_title': ti
+        })
+    
+    sentiment_trend_df = pd.DataFrame(sentiment_history)
+    
+    # 注意：这里需要把 sentiment_trend_df 也返回出去
+    # 但是原来的 main 函数只接收两个变量：trend_result, burst_df
+    # 我们可以把 sentiment_trend_df 塞进 trend_result 或者作为一个新的返回值
+    
+    # 建议方案：把它塞进一个字典返回，或者修改 main 函数接收 3 个值
+    # 这里我们修改 main 函数的调用方式
+    
+    return sentiment_trend_df

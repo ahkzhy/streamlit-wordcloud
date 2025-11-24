@@ -18,6 +18,7 @@ class analysisData:
     def __init__(self):
         self.word_frequency_df=HistoryDataQueue()
         self.word_frequency_title_df=HistoryDataQueue()
+        self.sentiment_history = []
         self.load_data()
         self.data_lock = threading.Lock()
         
@@ -37,7 +38,17 @@ class analysisData:
             self.article_df = load_article_data()
         if file=="sentiment.csv" or file=="all":
             self.sentiment_df = load_sentiment_data()
-        
+            if self.sentiment_df is not None and not self.sentiment_df.empty:
+                timestamp = pd.Timestamp.now()
+                avg_content = self.sentiment_df['score_content'].mean() if 'score_content' in self.sentiment_df.columns else 0
+                avg_title = self.sentiment_df['score_title'].mean() if 'score_title' in self.sentiment_df.columns else 0
+                self.sentiment_history.append({
+                    'timestamp': timestamp,
+                    'avg_content': avg_content,
+                    'avg_title': avg_title
+                })
+                if len(self.sentiment_history) > 50:
+                    self.sentiment_history.pop(0)
         word_frequency_df,word_frequency_title_df = load_frequency_data()
         if file=="word_frequency.csv" or file=="all":
             self.word_frequency_df.add(word_frequency_df)
@@ -52,6 +63,13 @@ class analysisData:
 
         
     #-- Sentiment Analysis Methods --#
+    def get_sentiment_trend(self):
+        """返回情感趋势 DataFrame"""
+        with self.data_lock:
+            if not self.sentiment_history:
+                return pd.DataFrame()
+            return pd.DataFrame(self.sentiment_history)
+        
     def get_sentiment_content_top_10_desc(self):
         """
         Get top 10 content sentiment scores from sentiment data.
